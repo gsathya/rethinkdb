@@ -164,7 +164,8 @@ public:
     ~subscription_t();
     std::vector<counted_t<const datum_t> >
     get_els(batcher_t *batcher, const signal_t *interruptor);
-    void add_el(const uuid_u &uuid, uint64_t stamp, counted_t<const datum_t> d);
+    void add_el(const uuid_u &uuid, uint64_t stamp, counted_t<const datum_t> d,
+                const configured_limits_t &limits);
     void start(std::map<uuid_u, uint64_t> &&_start_stamps);
     void stop(const std::string &msg, detach_t should_detach);
 private:
@@ -249,6 +250,7 @@ public:
         : feed(_feed), server_uuid(_server_uuid), stamp(_stamp) { }
     void operator()(const msg_t::change_t &change) const {
         auto null = make_counted<const datum_t>(datum_t::R_NULL);
+        configured_limits_t default_limits;
         std::map<std::string, counted_t<const datum_t> > obj{
             {"new_val", change.new_val.has() ? change.new_val : null},
             {"old_val", change.old_val.has() ? change.old_val : null}
@@ -259,7 +261,8 @@ public:
                       ph::_1,
                       std::cref(server_uuid),
                       stamp,
-                      d));
+                      d,
+                      default_limits));
     }
     void operator()(const msg_t::stop_t &) const {
         const char *msg = "Changefeed aborted (table unavailable).";
@@ -360,8 +363,9 @@ subscription_t::get_els(batcher_t *batcher, const signal_t *interruptor) {
     return std::move(v);
 }
 
-void subscription_t::add_el(
-    const uuid_u &uuid, uint64_t stamp, counted_t<const datum_t> d) {
+void subscription_t::add_el(const uuid_u &uuid, uint64_t stamp,
+                            counted_t<const datum_t> d,
+                            const configured_limits_t &limits) {
     assert_thread();
     // If we don't have start timestamps, we haven't started, and if we have
     // exc, we've stopped.
@@ -370,7 +374,7 @@ void subscription_t::add_el(
         guarantee(it != start_stamps.end());
         if (stamp >= it->second) {
             els.push_back(d);
-            if (els.size() > array_size_limit()) {
+            if (els.size() > limits.array_size_limit()) {
                 skipped += els.size();
                 els.clear();
             }
