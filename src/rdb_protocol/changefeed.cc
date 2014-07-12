@@ -197,7 +197,8 @@ public:
            mailbox_manager_t *manager,
            base_namespace_repo_t *ns_repo,
            uuid_u uuid,
-           signal_t *interruptor);
+           signal_t *interruptor,
+           const configured_limits_t &limits);
     ~feed_t();
     void add_sub(subscription_t *sub) THROWS_NOTHING;
     void del_sub(subscription_t *sub) THROWS_NOTHING;
@@ -516,7 +517,8 @@ feed_t::feed_t(client_t *_client,
                mailbox_manager_t *_manager,
                base_namespace_repo_t *ns_repo,
                uuid_u _uuid,
-               signal_t *interruptor)
+               signal_t *interruptor,
+               const configured_limits_t &limits)
     : client(_client),
       uuid(_uuid),
       manager(_manager),
@@ -527,7 +529,7 @@ feed_t::feed_t(client_t *_client,
     base_namespace_repo_t::access_t access(ns_repo, uuid, interruptor);
     namespace_interface_t *nif = access.get_namespace_if();
     read_t read(changefeed_subscribe_t(mailbox.get_address()),
-                profile_bool_t::DONT_PROFILE);
+                profile_bool_t::DONT_PROFILE, limits);
     read_response_t read_resp;
     nif->read(read, &read_resp, order_token_t::ignore, interruptor);
     auto resp = boost::get<changefeed_subscribe_response_t>(&read_resp.response);
@@ -623,7 +625,7 @@ client_t::new_feed(const counted_t<table_t> &tbl, env_t *env) {
             if (feed_it == feeds.end()) {
                 spot.write_signal()->wait_lazily_unordered();
                 auto val = make_scoped<feed_t>(
-                        this, manager, env->ns_repo(), uuid, &interruptor);
+                    this, manager, env->ns_repo(), uuid, &interruptor, env->limits);
                 feed_it = feeds.insert(std::make_pair(uuid, std::move(val))).first;
             }
 
@@ -636,7 +638,7 @@ client_t::new_feed(const counted_t<table_t> &tbl, env_t *env) {
         }
         base_namespace_repo_t::access_t access(env->ns_repo(), uuid, env->interruptor);
         namespace_interface_t *nif = access.get_namespace_if();
-        read_t read(changefeed_stamp_t(addr), profile_bool_t::DONT_PROFILE);
+        read_t read(changefeed_stamp_t(addr), profile_bool_t::DONT_PROFILE, env->limits);
         read_response_t read_resp;
         nif->read(read, &read_resp, order_token_t::ignore, env->interruptor);
         auto resp = boost::get<changefeed_stamp_response_t>(&read_resp.response);
