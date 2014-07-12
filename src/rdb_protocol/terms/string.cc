@@ -42,7 +42,8 @@ private:
             for (int i = 1; i < ngroups; ++i) {
                 const re2::StringPiece &group = groups[i];
                 if (group.data() == NULL) {
-                    match_groups.add(make_counted<datum_t>(datum_t::R_NULL));
+                    match_groups.add(make_counted<datum_t>(datum_t::R_NULL),
+                                     env->env->limits);
                 } else {
                     datum_ptr_t match_group(datum_t::R_OBJECT);
                     b |= match_group.add(
@@ -53,7 +54,7 @@ private:
                     b |= match_group.add(
                         "end", make_counted<const datum_t>(
                             static_cast<double>(group.end() - str.data())));
-                    match_groups.add(match_group.to_counted());
+                    match_groups.add(match_group.to_counted(), env->env->limits);
                 }
             }
             b |= match.add("groups", match_groups.to_counted());
@@ -119,7 +120,7 @@ private:
                 : next + (delim ? delim->size() : 1);
         }
 
-        return new_val(make_counted<const datum_t>(std::move(res)));
+        return new_val(make_counted<const datum_t>(std::move(res), env->env->limits));
     }
     virtual const char *name() const { return "split"; }
 };

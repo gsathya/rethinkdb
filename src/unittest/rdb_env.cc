@@ -94,11 +94,12 @@ std::set<region_t> mock_namespace_interface_t::get_sharding_scheme()
 }
 
 void mock_namespace_interface_t::read_visitor_t::operator()(const point_read_t &get) {
+    ql::configured_limits_t limits;
     response->response = point_read_response_t();
     point_read_response_t &res = boost::get<point_read_response_t>(response->response);
 
     if (data->find(get.key) != data->end()) {
-        res.data = make_counted<ql::datum_t>(scoped_cJSON_t(data->at(get.key)->DeepCopy()));
+        res.data = make_counted<ql::datum_t>(scoped_cJSON_t(data->at(get.key)->DeepCopy()), limits);
     } else {
         res.data = make_counted<ql::datum_t>(ql::datum_t::R_NULL);
     }
@@ -136,12 +137,13 @@ mock_namespace_interface_t::read_visitor_t::read_visitor_t(std::map<store_key_t,
 
 void mock_namespace_interface_t::write_visitor_t::operator()(
     const batched_replace_t &r) {
+    ql::configured_limits_t limits;
     counted_t<const ql::datum_t> stats(new ql::datum_t(ql::datum_t::R_OBJECT));
     for (auto it = r.keys.begin(); it != r.keys.end(); ++it) {
         ql::datum_ptr_t resp(ql::datum_t::R_OBJECT);
         counted_t<const ql::datum_t> old_val;
         if (data->find(*it) != data->end()) {
-            old_val = make_counted<ql::datum_t>(data->at(*it)->get());
+            old_val = make_counted<ql::datum_t>(data->at(*it)->get(), limits);
         } else {
             old_val = make_counted<ql::datum_t>(ql::datum_t::R_NULL);
         }
@@ -173,20 +175,21 @@ void mock_namespace_interface_t::write_visitor_t::operator()(
                 "value being inserted is neither an object nor an empty value");
         }
         guarantee(!err);
-        stats = stats->merge(resp.to_counted(), ql::stats_merge);
+        stats = stats->merge(resp.to_counted(), ql::stats_merge, limits);
     }
     response->response = stats;
 }
 
 void mock_namespace_interface_t::write_visitor_t::operator()(
     const batched_insert_t &bi) {
+    ql::configured_limits_t limits;
     counted_t<const ql::datum_t> stats(new ql::datum_t(ql::datum_t::R_OBJECT));
     for (auto it = bi.inserts.begin(); it != bi.inserts.end(); ++it) {
         store_key_t key((*it)->get(bi.pkey)->print_primary());
         ql::datum_ptr_t resp(ql::datum_t::R_OBJECT);
         counted_t<const ql::datum_t> old_val;
         if (data->find(key) != data->end()) {
-            old_val = make_counted<ql::datum_t>(data->at(key)->get());
+            old_val = make_counted<ql::datum_t>(data->at(key)->get(), limits);
         } else {
             old_val = make_counted<ql::datum_t>(ql::datum_t::R_NULL);
         }
@@ -217,7 +220,7 @@ void mock_namespace_interface_t::write_visitor_t::operator()(
                 "value being inserted is neither an object nor an empty value");
         }
         guarantee(!err);
-        stats = stats->merge(resp.to_counted(), ql::stats_merge);
+        stats = stats->merge(resp.to_counted(), ql::stats_merge, limits);
     }
     response->response = stats;
 }
@@ -412,4 +415,3 @@ void test_rdb_env_t::instance_t::interrupt() {
 }
 
 }
-

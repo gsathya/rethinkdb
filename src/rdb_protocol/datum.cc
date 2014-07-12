@@ -52,10 +52,11 @@ datum_t::datum_t(scoped_ptr_t<wire_string_t> str)
 datum_t::datum_t(const char *cstr)
     : type(R_STR), r_str(wire_string_t::create_and_init(::strlen(cstr), cstr).release()) { }
 
-datum_t::datum_t(std::vector<counted_t<const datum_t> > &&_array)
+datum_t::datum_t(std::vector<counted_t<const datum_t> > &&_array,
+                 const configured_limits_t &limits)
     : type(R_ARRAY),
       r_array(new std::vector<counted_t<const datum_t> >(std::move(_array))) {
-    rcheck_array_size(*r_array, base_exc_t::GENERIC);
+    rcheck_array_size(*r_array, limits, base_exc_t::GENERIC);
 }
 
 datum_t::datum_t(std::map<std::string, counted_t<const datum_t> > &&_object)
@@ -65,7 +66,7 @@ datum_t::datum_t(std::map<std::string, counted_t<const datum_t> > &&_object)
     maybe_sanitize_ptype();
 }
 
-datum_t::datum_t(grouped_data_t &&gd)
+datum_t::datum_t(grouped_data_t &&gd, const configured_limits_t &limits)
     : type(R_OBJECT),
       r_object(new std::map<std::string, counted_t<const datum_t> >()) {
     (*r_object)[reql_type_string] = make_counted<const datum_t>("GROUPED_DATA");
@@ -74,9 +75,10 @@ datum_t::datum_t(grouped_data_t &&gd)
     for (auto kv = gd.begin(); kv != gd.end(); ++kv) {
         v.push_back(make_counted<const datum_t>(
                         std::vector<counted_t<const datum_t> >{
-                            std::move(kv->first), std::move(kv->second)}));
+                            std::move(kv->first), std::move(kv->second)},
+                        limits));
     }
-    (*r_object)["data"] = make_counted<const datum_t>(std::move(v));
+    (*r_object)["data"] = make_counted<const datum_t>(std::move(v), limits);
     // We don't sanitize the ptype because this is a fake ptype that should only
     // be used for serialization.
 }
@@ -138,7 +140,7 @@ void datum_t::init_object() {
     r_object = new std::map<std::string, counted_t<const datum_t> >();
 }
 
-void datum_t::init_json(cJSON *json) {
+void datum_t::init_json(cJSON *json, const configured_limits_t &limits) {
     switch (json->type) {
     case cJSON_False: {
         type = R_BOOL;
@@ -167,14 +169,14 @@ void datum_t::init_json(cJSON *json) {
         init_array();
         json_array_iterator_t it(json);
         while (cJSON *item = it.next()) {
-            add(make_counted<datum_t>(item));
+            add(make_counted<datum_t>(item, limits), limits);
         }
     } break;
     case cJSON_Object: {
         init_object();
         json_object_iterator_t it(json);
         while (cJSON *item = it.next()) {
-            bool conflict = add(item->string, make_counted<datum_t>(item));
+            bool conflict = add(item->string, make_counted<datum_t>(item, limits));
             rcheck(!conflict, base_exc_t::GENERIC,
                    strprintf("Duplicate key `%s` in JSON.", item->string));
         }
@@ -206,11 +208,11 @@ void datum_t::check_str_validity(const std::string &str) {
                      str.c_str(), null_offset));
 }
 
-datum_t::datum_t(cJSON *json) {
-    init_json(json);
+datum_t::datum_t(cJSON *json, const configured_limits_t &limits) {
+    init_json(json, limits);
 }
-datum_t::datum_t(const scoped_cJSON_t &json) {
-    init_json(json.get());
+datum_t::datum_t(const scoped_cJSON_t &json, const configured_limits_t &limits) {
+    init_json(json.get(), limits);
 }
 
 datum_t::type_t datum_t::get_type() const { return type; }
@@ -399,7 +401,8 @@ void datum_t::rcheck_is_ptype(const std::string s) const {
                         trunc_print().c_str())));
 }
 
-counted_t<const datum_t> datum_t::drop_literals(bool *encountered_literal_out) const {
+counted_t<const datum_t> datum_t::drop_literals(const configured_limits_t &limits,
+                                                bool *encountered_literal_out) const {
     rassert(encountered_literal_out != NULL);
 
     const bool is_literal = is_ptype(pseudo::literal_string);
@@ -407,7 +410,7 @@ counted_t<const datum_t> datum_t::drop_literals(bool *encountered_literal_out) c
         counted_t<const datum_t> val = get(pseudo::value_key, NOTHROW);
         if (val) {
             bool encountered_literal;
-            val = val->drop_literals(&encountered_literal);
+            val = val->drop_literals(limits, &encountered_literal);
             // Nested literals should have been caught on the higher QL levels.
             r_sanity_check(!encountered_literal);
         }
@@ -426,7 +429,7 @@ counted_t<const datum_t> datum_t::drop_literals(bool *encountered_literal_out) c
         for (auto it = obj.begin(); it != obj.end(); ++it) {
             bool encountered_literal;
             counted_t<const datum_t> val =
-                it->second->drop_literals(&encountered_literal);
+                it->second->drop_literals(limits, &encountered_literal);
 
             if (encountered_literal && !need_to_copy) {
                 // We have encountered the first field with a literal.
@@ -453,7 +456,8 @@ counted_t<const datum_t> datum_t::drop_literals(bool *encountered_literal_out) c
         const std::vector<counted_t<const datum_t> > &arr = as_array();
         for (auto it = arr.begin(); it != arr.end(); ++it) {
             bool encountered_literal;
-            counted_t<const datum_t> val = (*it)->drop_literals(&encountered_literal);
+            counted_t<const datum_t> val
+                = (*it)->drop_literals(limits, &encountered_literal);
 
             if (encountered_literal && !need_to_copy) {
                 // We have encountered the first element with a literal.
@@ -462,13 +466,13 @@ counted_t<const datum_t> datum_t::drop_literals(bool *encountered_literal_out) c
                 // Copy everything up to now into the result
                 copied_result.init(new datum_ptr_t(R_ARRAY));
                 for (auto copy_it = arr.begin(); copy_it != it; ++copy_it) {
-                    copied_result->add(*copy_it);
+                    copied_result->add(*copy_it, limits);
                 }
             }
 
             if (need_to_copy) {
                 if (val) {
-                    copied_result->add(val);
+                    copied_result->add(val, limits);
                 } else {
                     // If `*it` was a literal without a value, ignore it
                 }
@@ -894,11 +898,11 @@ datum_t::as_datum_stream(const protob_t<const Backtrace> &backtrace) const {
     unreachable();
 };
 
-void datum_t::add(counted_t<const datum_t> val) {
+void datum_t::add(counted_t<const datum_t> val, const configured_limits_t &limits) {
     check_type(R_ARRAY);
     r_sanity_check(val.has());
     r_array->push_back(val);
-    rcheck_array_size(*r_array, base_exc_t::GENERIC);
+    rcheck_array_size(*r_array, limits, base_exc_t::GENERIC);
 }
 
 MUST_USE bool datum_t::add(const std::string &key, counted_t<const datum_t> val,
@@ -915,7 +919,7 @@ MUST_USE bool datum_t::delete_field(const std::string &key) {
     return r_object->erase(key);
 }
 
-counted_t<const datum_t> datum_t::merge(counted_t<const datum_t> rhs) const {
+counted_t<const datum_t> datum_t::merge(counted_t<const datum_t> rhs, const configured_limits_t &limits) const {
     if (get_type() != R_OBJECT || rhs->get_type() != R_OBJECT) { return rhs; }
 
     datum_ptr_t d(as_object());
@@ -925,7 +929,8 @@ counted_t<const datum_t> datum_t::merge(counted_t<const datum_t> rhs) const {
         bool is_literal = it->second->is_ptype(pseudo::literal_string);
 
         if (it->second->get_type() == R_OBJECT && sub_lhs && !is_literal) {
-            UNUSED bool b = d.add(it->first, sub_lhs->merge(it->second), CLOBBER);
+            UNUSED bool b = d.add(it->first, sub_lhs->merge(it->second, limits),
+                                  CLOBBER);
         } else {
             counted_t<const datum_t> val =
                 is_literal
@@ -935,7 +940,7 @@ counted_t<const datum_t> datum_t::merge(counted_t<const datum_t> rhs) const {
                 // Since nested literal keywords are forbidden, this should be a no-op
                 // if `is_literal == true`.
                 bool encountered_literal;
-                val = val->drop_literals(&encountered_literal);
+                val = val->drop_literals(limits, &encountered_literal);
                 r_sanity_check(!encountered_literal || !is_literal);
             }
             if (val) {
@@ -950,12 +955,13 @@ counted_t<const datum_t> datum_t::merge(counted_t<const datum_t> rhs) const {
 }
 
 counted_t<const datum_t> datum_t::merge(counted_t<const datum_t> rhs,
-                                        merge_resoluter_t f) const {
+                                        merge_resoluter_t f,
+                                        const configured_limits_t &limits) const {
     datum_ptr_t d(as_object());
     const std::map<std::string, counted_t<const datum_t> > &rhs_obj = rhs->as_object();
     for (auto it = rhs_obj.begin(); it != rhs_obj.end(); ++it) {
         if (counted_t<const datum_t> left = get(it->first, NOTHROW)) {
-            bool b = d.add(it->first, f(it->first, left, it->second), CLOBBER);
+            bool b = d.add(it->first, f(it->first, left, it->second, limits), CLOBBER);
             r_sanity_check(b);
         } else {
             bool b = d.add(it->first, it->second);
@@ -1049,11 +1055,12 @@ void datum_t::runtime_fail(base_exc_t::type_t exc_type,
 
 datum_t::datum_t() : type(UNINITIALIZED) { }
 
-datum_t::datum_t(const Datum *d) : type(UNINITIALIZED) {
-    init_from_pb(d);
+datum_t::datum_t(const Datum *d, const configured_limits_t &limits)
+    : type(UNINITIALIZED) {
+    init_from_pb(d, limits);
 }
 
-void datum_t::init_from_pb(const Datum *d) {
+void datum_t::init_from_pb(const Datum *d, const configured_limits_t &limits) {
     r_sanity_check(type == UNINITIALIZED);
     switch (d->type()) {
     case Datum::R_NULL: {
@@ -1079,12 +1086,12 @@ void datum_t::init_from_pb(const Datum *d) {
     } break;
     case Datum::R_JSON: {
         scoped_cJSON_t cjson(cJSON_Parse(d->r_str().c_str()));
-        init_json(cjson.get());
+        init_json(cjson.get(), limits);
     } break;
     case Datum::R_ARRAY: {
         init_array();
         for (int i = 0; i < d->r_array_size(); ++i) {
-            r_array->push_back(make_counted<datum_t>(&d->r_array(i)));
+            r_array->push_back(make_counted<datum_t>(&d->r_array(i), limits));
         }
     } break;
     case Datum::R_OBJECT: {
@@ -1096,7 +1103,7 @@ void datum_t::init_from_pb(const Datum *d) {
             rcheck(r_object->count(key) == 0,
                    base_exc_t::GENERIC,
                    strprintf("Duplicate key %s in object.", key.c_str()));
-            (*r_object)[key] = make_counted<datum_t>(&ap->val());
+            (*r_object)[key] = make_counted<datum_t>(&ap->val(), limits);
         }
         std::set<std::string> allowed_ptypes = { pseudo::literal_string };
         maybe_sanitize_ptype(allowed_ptypes);
@@ -1180,16 +1187,17 @@ void datum_t::write_to_protobuf(Datum *d, use_json_t use_json) const {
 // error-checking using the key in the future).
 counted_t<const datum_t> stats_merge(UNUSED const std::string &key,
                                      counted_t<const datum_t> l,
-                                     counted_t<const datum_t> r) {
+                                     counted_t<const datum_t> r,
+                                     const configured_limits_t &limits) {
     if (l->get_type() == datum_t::R_NUM && r->get_type() == datum_t::R_NUM) {
         return make_counted<datum_t>(l->as_num() + r->as_num());
     } else if (l->get_type() == datum_t::R_ARRAY && r->get_type() == datum_t::R_ARRAY) {
         datum_ptr_t arr(datum_t::R_ARRAY);
         for (size_t i = 0; i < l->size(); ++i) {
-            arr.add(l->get(i));
+            arr.add(l->get(i), limits);
         }
         for (size_t i = 0; i < r->size(); ++i) {
-            arr.add(r->get(i));
+            arr.add(r->get(i), limits);
         }
         return arr.to_counted();
     }

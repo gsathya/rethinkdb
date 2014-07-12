@@ -16,8 +16,10 @@
 namespace ql {
 
 counted_t<const term_t> compile_term(compile_env_t *env, protob_t<const Term> t) {
+    // HACK: compile time, not query time, so default limits?
+    ql::configured_limits_t limits;
     switch (t->type()) {
-    case Term::DATUM:              return make_datum_term(t);
+    case Term::DATUM:              return make_datum_term(t, limits);
     case Term::MAKE_ARRAY:         return make_make_array_term(env, t);
     case Term::MAKE_OBJ:           return make_make_obj_term(env, t);
     case Term::VAR:                return make_var_term(env, t);
@@ -194,6 +196,7 @@ void run(protob_t<Query> q,
     case Query_QueryType_START: {
         const profile_bool_t profile = profile_bool_optarg(q);
         env_t env(ctx, interruptor, global_optargs(q), profile);
+        // XXX: initialize limits here
 
         counted_t<const term_t> root_term;
         try {
@@ -234,7 +237,7 @@ void run(protob_t<Query> q,
             } else if (counted_t<grouped_data_t> gd
                        = val->maybe_as_promiscuous_grouped_data(scope_env.env)) {
                 res->set_type(Response::SUCCESS_ATOM);
-                datum_t d(std::move(*gd));
+                datum_t d(std::move(*gd), env.limits);
                 d.write_to_protobuf(res->add_response(), use_json);
                 if (env.trace.has()) {
                     env.trace->as_datum()->write_to_protobuf(

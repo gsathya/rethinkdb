@@ -62,6 +62,7 @@ enum clobber_bool_t { NOCLOBBER = 0, CLOBBER = 1};
 enum class use_json_t { NO = 0, YES = 1 };
 
 class grouped_data_t;
+class configured_limits_t;
 
 // A `datum_t` is basically a JSON value, although we may extend it later.
 class datum_t : public slow_atomic_countable_t<datum_t> {
@@ -86,18 +87,19 @@ public:
     explicit datum_t(std::string &&str);
     explicit datum_t(scoped_ptr_t<wire_string_t> str);
     explicit datum_t(const char *cstr);
-    explicit datum_t(std::vector<counted_t<const datum_t> > &&_array);
+    explicit datum_t(std::vector<counted_t<const datum_t> > &&_array,
+                     const configured_limits_t &limits);
     explicit datum_t(std::map<std::string, counted_t<const datum_t> > &&object);
 
     // This should only be used to send responses to the client.
-    explicit datum_t(grouped_data_t &&gd);
+    explicit datum_t(grouped_data_t &&gd, const configured_limits_t &limits);
 
     // These construct a datum from an equivalent representation.
     datum_t();
-    explicit datum_t(const Datum *d);
-    void init_from_pb(const Datum *d);
-    explicit datum_t(cJSON *json);
-    explicit datum_t(const scoped_cJSON_t &json);
+    explicit datum_t(const Datum *d, const configured_limits_t &limits);
+    void init_from_pb(const Datum *d, const configured_limits_t &limits);
+    explicit datum_t(cJSON *json, const configured_limits_t &limits);
+    explicit datum_t(const scoped_cJSON_t &json, const configured_limits_t &limits);
 
     ~datum_t();
 
@@ -143,12 +145,15 @@ public:
     // Access an element of an object.
     counted_t<const datum_t> get(const std::string &key,
                                  throw_bool_t throw_bool = THROW) const;
-    counted_t<const datum_t> merge(counted_t<const datum_t> rhs) const;
+    counted_t<const datum_t> merge(counted_t<const datum_t> rhs,
+                                   const configured_limits_t &limits) const;
     typedef counted_t<const datum_t> (*merge_resoluter_t)(const std::string &key,
                                                           counted_t<const datum_t> l,
-                                                          counted_t<const datum_t> r);
+                                                          counted_t<const datum_t> r,
+                                                          const configured_limits_t &limits);
     counted_t<const datum_t> merge(counted_t<const datum_t> rhs,
-                                   merge_resoluter_t f) const;
+                                   merge_resoluter_t f,
+                                   const configured_limits_t &limits) const;
 
     cJSON *as_json_raw() const;
     scoped_cJSON_t as_json() const;
@@ -190,7 +195,8 @@ public:
 private:
     friend class datum_ptr_t;
     friend void pseudo::sanitize_time(datum_t *time);
-    void add(counted_t<const datum_t> val); // add to an array
+     // add to an array
+    void add(counted_t<const datum_t> val, const configured_limits_t &limits);
     // change an element of an array
     void change(size_t index, counted_t<const datum_t> val);
     void insert(size_t index, counted_t<const datum_t> val); // insert into an array
@@ -206,7 +212,7 @@ private:
     void init_str(size_t size, const char *data);
     void init_array();
     void init_object();
-    void init_json(cJSON *json);
+    void init_json(cJSON *json, const configured_limits_t &limits);
 
     void check_str_validity(const wire_string_t *str);
     void check_str_validity(const std::string &str);
@@ -225,7 +231,8 @@ private:
     // Helper function for `merge()`:
     // Returns a version of this where all `literal` pseudotypes have been omitted.
     // Might return null, if this is a literal without a value.
-    counted_t<const datum_t> drop_literals(bool *encountered_literal_out) const;
+    counted_t<const datum_t> drop_literals(const configured_limits_t &limits,
+                                           bool *encountered_literal_out) const;
 
     type_t type;
     union {
@@ -272,7 +279,8 @@ public:
         UNUSED bool first_error_clobber =
             ptr()->add("first_error", make_counted<const datum_t>(msg), NOCLOBBER);
     }
-    void add(counted_t<const datum_t> val) { ptr()->add(val); }
+    void add(counted_t<const datum_t> val,
+             const configured_limits_t &limits) { ptr()->add(val, limits); }
     void change(size_t i, counted_t<const datum_t> val) { ptr()->change(i, val); }
     void insert(size_t i, counted_t<const datum_t> val) { ptr()->insert(i, val); }
     void erase(size_t i) { ptr()->erase(i); }
@@ -306,7 +314,8 @@ private:
 // operations.
 counted_t<const datum_t> stats_merge(UNUSED const std::string &key,
                                      counted_t<const datum_t> l,
-                                     counted_t<const datum_t> r);
+                                     counted_t<const datum_t> r,
+                                     const configured_limits_t &limits);
 
 namespace pseudo {
 class datum_cmp_t {

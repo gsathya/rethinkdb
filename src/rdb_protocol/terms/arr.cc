@@ -22,12 +22,14 @@ protected:
         datum_ptr_t out(datum_t::R_ARRAY);
         if (which_pend == PRE) {
             // TODO: this is horrendously inefficient.
-            out.add(new_el);
-            for (size_t i = 0; i < arr->size(); ++i) out.add(arr->get(i));
+            out.add(new_el, env->env->limits);
+            for (size_t i = 0; i < arr->size(); ++i)
+                out.add(arr->get(i), env->env->limits);
         } else {
             // TODO: this is horrendously inefficient.
-            for (size_t i = 0; i < arr->size(); ++i) out.add(arr->get(i));
-            out.add(new_el);
+            for (size_t i = 0; i < arr->size(); ++i)
+                out.add(arr->get(i), env->env->limits);
+            out.add(new_el, env->env->limits);
         }
         return new_val(out.to_counted());
     }
@@ -174,7 +176,7 @@ private:
             if (!r_oob) {
                 for (uint64_t i = real_l; i < real_r; ++i) {
                     if (i >= arr->size()) break;
-                    out.add(arr->get(i));
+                    out.add(arr->get(i), env->env->limits);
                 }
             }
             return new_val(out.to_counted());
@@ -250,11 +252,11 @@ private:
         datum_ptr_t out(datum_t::R_ARRAY);
         for (size_t i = 0; i < arr->size(); ++i) {
             if (el_set.insert(arr->get(i)).second) {
-                out.add(arr->get(i));
+                out.add(arr->get(i), env->env->limits);
             }
         }
         if (!std_contains(el_set, new_el)) {
-            out.add(new_el);
+            out.add(new_el, env->env->limits);
         }
 
         return new_val(out.to_counted());
@@ -275,12 +277,12 @@ private:
         datum_ptr_t out(datum_t::R_ARRAY);
         for (size_t i = 0; i < arr1->size(); ++i) {
             if (el_set.insert(arr1->get(i)).second) {
-                out.add(arr1->get(i));
+                out.add(arr1->get(i), env->env->limits);
             }
         }
         for (size_t i = 0; i < arr2->size(); ++i) {
             if (el_set.insert(arr2->get(i)).second) {
-                out.add(arr2->get(i));
+                out.add(arr2->get(i), env->env->limits);
             }
         }
 
@@ -305,7 +307,7 @@ private:
         }
         for (size_t i = 0; i < arr2->size(); ++i) {
             if (std_contains(el_set, arr2->get(i))) {
-                out.add(arr2->get(i));
+                out.add(arr2->get(i), env->env->limits);
                 el_set.erase(arr2->get(i));
             }
         }
@@ -331,7 +333,7 @@ private:
         }
         for (size_t i = 0; i < arr1->size(); ++i) {
             if (!std_contains(el_set, arr1->get(i))) {
-                out.add(arr1->get(i));
+                out.add(arr1->get(i), env->env->limits);
                 el_set.insert(arr1->get(i));
             }
         }
@@ -358,7 +360,7 @@ public:
     virtual void modify(scope_env_t *env, args_t *args, size_t index, datum_ptr_t *array) const = 0;
 
     counted_t<val_t> eval_impl(scope_env_t *env, args_t *args, eval_flags_t) const {
-        datum_ptr_t arr(args->arg(env, 0)->as_datum()->as_array());
+        datum_ptr_t arr(args->arg(env, 0)->as_datum()->as_array(), env->env->limits);
         size_t index;
         if (index_method_ == ELEMENTS) {
             index = canonicalize(this, args->arg(env, 1)->as_datum()->as_int(), arr->size());
@@ -451,7 +453,8 @@ public:
     contains_term_t(compile_env_t *env, const protob_t<const Term> &term)
         : op_term_t(env, term, argspec_t(1, -1)) { }
 private:
-    virtual counted_t<val_t> eval_impl(scope_env_t *env, args_t *args, eval_flags_t) const {
+    virtual counted_t<val_t> eval_impl(scope_env_t *env, args_t *args,
+                                       eval_flags_t) const {
         counted_t<datum_stream_t> seq = args->arg(env, 0)->as_seq(env->env);
         std::vector<counted_t<const datum_t> > required_els;
         std::vector<counted_t<func_t> > required_funcs;

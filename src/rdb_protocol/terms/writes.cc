@@ -13,7 +13,8 @@ namespace ql {
 // Use this merge if it should theoretically never be called.
 counted_t<const datum_t> pure_merge(UNUSED const std::string &key,
                                     UNUSED counted_t<const datum_t> l,
-                                    UNUSED counted_t<const datum_t> r) {
+                                    UNUSED counted_t<const datum_t> r,
+                                    UNUSED const configured_limits_t &limits) {
     r_sanity_check(false);
     return counted_t<const datum_t>();
 }
@@ -73,7 +74,7 @@ private:
             datum_ptr_t d(datum_t::R_OBJECT);
             bool conflict = d.add(tbl->get_pkey(), keyd);
             r_sanity_check(!conflict);
-            *datum_out = (*datum_out)->merge(d.to_counted(), pure_merge);
+            *datum_out = (*datum_out)->merge(d.to_counted(), pure_merge, limits);
             if (generated_keys_out->size() < limits.array_size_limit()) {
                 generated_keys_out->push_back(key);
             } else {
@@ -111,7 +112,7 @@ private:
                 counted_t<const datum_t> replace_stats = t->batched_insert(
                     env->env, std::move(datums), conflict_behavior,
                     durability_requirement, return_vals);
-                stats = stats->merge(replace_stats, stats_merge);
+                stats = stats->merge(replace_stats, stats_merge, env->env->limits);
                 done = true;
             }
         }
@@ -141,7 +142,7 @@ private:
 
                 counted_t<const datum_t> replace_stats = t->batched_insert(
                     env->env, std::move(datums), conflict_behavior, durability_requirement, false);
-                stats = stats->merge(replace_stats, stats_merge);
+                stats = stats->merge(replace_stats, stats_merge, env->env->limits);
             }
         }
 
@@ -153,8 +154,9 @@ private:
             }
             datum_ptr_t d(datum_t::R_OBJECT);
             UNUSED bool b = d.add("generated_keys",
-                                  make_counted<datum_t>(std::move(genkeys)));
-            stats = stats->merge(d.to_counted(), pure_merge);
+                                  make_counted<datum_t>(std::move(genkeys),
+                                                        env->env->limits));
+            stats = stats->merge(d.to_counted(), pure_merge, env->env->limits);
         }
 
         if (keys_skipped > 0) {
@@ -166,8 +168,9 @@ private:
                               generated_keys.size())));
             datum_ptr_t d(datum_t::R_OBJECT);
             UNUSED bool b = d.add("warnings",
-                                  make_counted<const datum_t>(std::move(warnings)));
-            stats = stats->merge(d.to_counted(), stats_merge);
+                                  make_counted<const datum_t>(std::move(warnings),
+                                                              env->env->limits));
+            stats = stats->merge(d.to_counted(), stats_merge, env->env->limits);
         }
 
         return new_val(stats);
@@ -219,7 +222,7 @@ private:
             counted_t<const datum_t> replace_stats = tblrow.first->batched_replace(
                 env->env, vals, keys, f,
                 nondet_ok, durability_requirement, return_vals);
-            stats = stats->merge(replace_stats, stats_merge);
+            stats = stats->merge(replace_stats, stats_merge, env->env->limits);
         } else {
             std::pair<counted_t<table_t>, counted_t<datum_stream_t> > tblrows
                 = v0->as_selection(env->env);
@@ -244,7 +247,7 @@ private:
                 counted_t<const datum_t> replace_stats = tbl->batched_replace(
                     env->env, vals, keys,
                     f, nondet_ok, durability_requirement, false);
-                stats = stats->merge(replace_stats, stats_merge);
+                stats = stats->merge(replace_stats, stats_merge, env->env->limits);
             }
         }
         return new_val(stats);
@@ -276,10 +279,10 @@ private:
                 try {
                     counted_t<const datum_t> d = v->as_datum();
                     if (d->get_type() == datum_t::R_OBJECT) {
-                        stats = stats->merge(d, stats_merge);
+                        stats = stats->merge(d, stats_merge, env->env->limits);
                     } else {
                         for (size_t i = 0; i < d->size(); ++i) {
-                            stats = stats->merge(d->get(i), stats_merge);
+                            stats = stats->merge(d->get(i), stats_merge, env->env->limits);
                         }
                     }
                 } catch (const exc_t &e) {
