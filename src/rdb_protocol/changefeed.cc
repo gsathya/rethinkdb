@@ -624,8 +624,13 @@ client_t::new_feed(const counted_t<table_t> &tbl, env_t *env) {
             auto feed_it = feeds.find(uuid);
             if (feed_it == feeds.end()) {
                 spot.write_signal()->wait_lazily_unordered();
-                auto val = make_scoped<feed_t>(
-                    this, manager, env->ns_repo(), uuid, &interruptor, env->limits);
+                // Even though we have the user's feed here, multiple
+                // users may share a feed_t, and this code path will
+                // only be run for the first one.  Rather than mess
+                // about, just use the defaults.
+                auto val = make_scoped<feed_t>(this, manager, env->ns_repo(), uuid,
+                                               &interruptor,
+                                               configured_limits_t());
                 feed_it = feeds.insert(std::make_pair(uuid, std::move(val))).first;
             }
 
@@ -638,7 +643,8 @@ client_t::new_feed(const counted_t<table_t> &tbl, env_t *env) {
         }
         base_namespace_repo_t::access_t access(env->ns_repo(), uuid, env->interruptor);
         namespace_interface_t *nif = access.get_namespace_if();
-        read_t read(changefeed_stamp_t(addr), profile_bool_t::DONT_PROFILE, env->limits);
+        read_t read(changefeed_stamp_t(addr), profile_bool_t::DONT_PROFILE,
+                    env->limits);
         read_response_t read_resp;
         nif->read(read, &read_resp, order_token_t::ignore, env->interruptor);
         auto resp = boost::get<changefeed_stamp_response_t>(&read_resp.response);
