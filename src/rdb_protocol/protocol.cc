@@ -1073,7 +1073,7 @@ RDB_IMPL_SERIALIZABLE_2_SINCE_v1_13(sindex_status_t, sindexes, region);
 RDB_IMPL_SERIALIZABLE_2_SINCE_v1_13(changefeed_subscribe_t, addr, region);
 RDB_IMPL_SERIALIZABLE_2_SINCE_v1_13(changefeed_stamp_t, addr, region);
 
-RDB_MAKE_SERIALIZABLE_2(read_t, read, profile);
+RDB_MAKE_SERIALIZABLE_2(read_t, read, profile, limits);
 INSTANTIATE_SERIALIZABLE_FOR_CLUSTER(read_t);
 
 RDB_IMPL_SERIALIZABLE_1_SINCE_v1_13(point_write_response_t, result);
@@ -1098,8 +1098,8 @@ RDB_IMPL_SERIALIZABLE_4_SINCE_v1_13(sindex_create_t, id, mapping, region, multi)
 RDB_IMPL_SERIALIZABLE_2_SINCE_v1_13(sindex_drop_t, id, region);
 RDB_IMPL_SERIALIZABLE_1_SINCE_v1_13(sync_t, region);
 
-RDB_IMPL_SERIALIZABLE_3_SINCE_v1_13(
-        write_t, write, durability_requirement, profile);
+RDB_IMPL_SERIALIZABLE_3(
+    write_t, write, durability_requirement, profile, limits);
 
 // Serialization format changed in 1.13.2. We only support the latest version,
 // since this is a cluster-only type.
