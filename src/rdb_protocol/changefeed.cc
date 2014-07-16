@@ -197,8 +197,7 @@ public:
            mailbox_manager_t *manager,
            base_namespace_repo_t *ns_repo,
            uuid_u uuid,
-           signal_t *interruptor,
-           const configured_limits_t &limits);
+           signal_t *interruptor);
     ~feed_t();
     void add_sub(subscription_t *sub) THROWS_NOTHING;
     void del_sub(subscription_t *sub) THROWS_NOTHING;
@@ -517,8 +516,7 @@ feed_t::feed_t(client_t *_client,
                mailbox_manager_t *_manager,
                base_namespace_repo_t *ns_repo,
                uuid_u _uuid,
-               signal_t *interruptor,
-               const configured_limits_t &limits)
+               signal_t *interruptor)
     : client(_client),
       uuid(_uuid),
       manager(_manager),
@@ -629,8 +627,7 @@ client_t::new_feed(const counted_t<table_t> &tbl, env_t *env) {
                 // only be run for the first one.  Rather than mess
                 // about, just use the defaults.
                 auto val = make_scoped<feed_t>(this, manager, env->ns_repo(), uuid,
-                                               &interruptor,
-                                               configured_limits_t());
+                                               &interruptor);
                 feed_it = feeds.insert(std::make_pair(uuid, std::move(val))).first;
             }
 
