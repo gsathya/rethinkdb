@@ -529,7 +529,7 @@ feed_t::feed_t(client_t *_client,
     base_namespace_repo_t::access_t access(ns_repo, uuid, interruptor);
     namespace_interface_t *nif = access.get_namespace_if();
     read_t read(changefeed_subscribe_t(mailbox.get_address()),
-                profile_bool_t::DONT_PROFILE, limits);
+                profile_bool_t::DONT_PROFILE);
     read_response_t read_resp;
     nif->read(read, &read_resp, order_token_t::ignore, interruptor);
     auto resp = boost::get<changefeed_subscribe_response_t>(&read_resp.response);
@@ -643,8 +643,7 @@ client_t::new_feed(const counted_t<table_t> &tbl, env_t *env) {
         }
         base_namespace_repo_t::access_t access(env->ns_repo(), uuid, env->interruptor);
         namespace_interface_t *nif = access.get_namespace_if();
-        read_t read(changefeed_stamp_t(addr), profile_bool_t::DONT_PROFILE,
-                    env->limits);
+        read_t read(changefeed_stamp_t(addr), profile_bool_t::DONT_PROFILE);
         read_response_t read_resp;
         nif->read(read, &read_resp, order_token_t::ignore, env->interruptor);
         auto resp = boost::get<changefeed_stamp_response_t>(&read_resp.response);
