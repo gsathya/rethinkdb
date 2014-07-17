@@ -50,19 +50,6 @@ private:
     DISABLE_COPYING(semilattice_http_app_t);
 };
 
-class cluster_semilattice_http_app_t : public semilattice_http_app_t<cluster_semilattice_metadata_t> {
-public:
-    cluster_semilattice_http_app_t(
-        metadata_change_handler_t<cluster_semilattice_metadata_t> *_metadata_change_handler,
-        const clone_ptr_t<watchable_t<change_tracking_map_t<peer_id_t, cluster_directory_metadata_t> > > &_directory_metadata,
-        uuid_u _us);
-    ~cluster_semilattice_http_app_t();
-
-private:
-    void metadata_change_callback(cluster_semilattice_metadata_t *new_metadata,
-        const boost::optional<namespace_id_t> &prioritize_distr_for_ns);
-};
-
 class auth_semilattice_http_app_t : public semilattice_http_app_t<auth_semilattice_metadata_t> {
 public:
     auth_semilattice_http_app_t(

@@ -9,7 +9,6 @@
 #include <utility>
 
 // TODO: Probably some of these headers could be moved to the .cc.
-#include "clustering/administration/datacenter_metadata.hpp"
 #include "clustering/administration/database_metadata.hpp"
 #include "clustering/administration/issues/local.hpp"
 #include "clustering/administration/log_transfer.hpp"
@@ -32,7 +31,6 @@ public:
     cow_ptr_t<namespaces_semilattice_metadata_t> rdb_namespaces;
 
     machines_semilattice_metadata_t machines;
-    datacenters_semilattice_metadata_t datacenters;
     databases_semilattice_metadata_t databases;
 };
 
