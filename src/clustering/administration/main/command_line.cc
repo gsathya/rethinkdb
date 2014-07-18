@@ -677,7 +677,6 @@ service_address_ports_t get_service_address_ports(const std::map<std::string, op
 
 
 void run_rethinkdb_create(const base_path_t &base_path,
-                          const name_string_t &machine_name,
                           const file_direct_io_mode_t direct_io_mode,
                           const int max_concurrent_io_requests,
                           bool *const result_out) {
@@ -685,11 +684,6 @@ void run_rethinkdb_create(const base_path_t &base_path,
 
     cluster_semilattice_metadata_t cluster_metadata;
     auth_semilattice_metadata_t auth_metadata;
-
-    machine_semilattice_metadata_t machine_semilattice_metadata;
-    machine_semilattice_metadata.name = machine_semilattice_metadata.name.make_new_version(machine_name, our_machine_id);
-    machine_semilattice_metadata.datacenter = vclock_t<datacenter_id_t>(nil_uuid(), our_machine_id);
-    cluster_metadata.machines.machines.insert(std::make_pair(our_machine_id, make_deletable(machine_semilattice_metadata)));
 
     io_backender_t io_backender(direct_io_mode, max_concurrent_io_requests);
 
@@ -882,11 +876,6 @@ void run_rethinkdb_porcelain(const base_path_t &base_path,
         machine_id_t our_machine_id = generate_uuid();
 
         cluster_semilattice_metadata_t cluster_metadata;
-
-        machine_semilattice_metadata_t our_machine_metadata;
-        our_machine_metadata.name = vclock_t<name_string_t>(machine_name, our_machine_id);
-        our_machine_metadata.datacenter = vclock_t<datacenter_id_t>(nil_uuid(), our_machine_id);
-        cluster_metadata.machines.machines.insert(std::make_pair(our_machine_id, make_deletable(our_machine_metadata)));
 
         if (serve_info->joins.empty()) {
             logINF("Creating a default database for your convenience. (This is because you ran 'rethinkdb' "
@@ -1151,7 +1140,6 @@ options::help_section_t get_help_options(std::vector<options::option_t> *options
 void get_rethinkdb_create_options(std::vector<options::help_section_t> *help_out,
                                   std::vector<options::option_t> *options_out) {
     help_out->push_back(get_file_options(options_out));
-    help_out->push_back(get_machine_options(options_out));
     help_out->push_back(get_setuser_options(options_out));
     help_out->push_back(get_help_options(options_out));
     help_out->push_back(get_log_options(options_out));
@@ -1161,6 +1149,7 @@ void get_rethinkdb_create_options(std::vector<options::help_section_t> *help_out
 void get_rethinkdb_serve_options(std::vector<options::help_section_t> *help_out,
                                  std::vector<options::option_t> *options_out) {
     help_out->push_back(get_file_options(options_out));
+    help_out->push_back(get_machine_options(options_out));
     help_out->push_back(get_network_options(false, options_out));
     help_out->push_back(get_web_options(options_out));
     help_out->push_back(get_cpu_options(options_out));
@@ -1311,13 +1300,6 @@ int main_rethinkdb_create(int argc, char *argv[]) {
 
         base_path_t base_path(get_single_option(opts, "--directory"));
 
-        std::string machine_name_str = get_single_option(opts, "--machine-name");
-        name_string_t machine_name;
-        if (!machine_name.assign_value(machine_name_str)) {
-            fprintf(stderr, "ERROR: machine-name '%s' is invalid.  (%s)\n", machine_name_str.c_str(), name_string_t::valid_char_msg);
-            return EXIT_FAILURE;
-        }
-
         int max_concurrent_io_requests;
         if (!parse_io_threads_option(opts, &max_concurrent_io_requests)) {
             return EXIT_FAILURE;
@@ -1343,7 +1325,6 @@ int main_rethinkdb_create(int argc, char *argv[]) {
 
         bool result;
         run_in_thread_pool(std::bind(&run_rethinkdb_create, base_path,
-                                     machine_name,
                                      direct_io_mode,
                                      max_concurrent_io_requests,
                                      &result),
