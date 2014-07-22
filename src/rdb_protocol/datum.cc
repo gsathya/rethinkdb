@@ -401,8 +401,11 @@ void datum_t::rcheck_is_ptype(const std::string s) const {
                         trunc_print().c_str())));
 }
 
-counted_t<const datum_t> datum_t::drop_literals(const configured_limits_t &limits,
-                                                bool *encountered_literal_out) const {
+counted_t<const datum_t> datum_t::drop_literals(bool *encountered_literal_out) const {
+    // drop_literals will never create arrays larger than those in the
+    // existing datum; so checking (and thus threading the limits
+    // parameter) is unnecessary here.
+    const ql::configured_limits_t & limits = ql::configured_limits_t::unlimited;
     rassert(encountered_literal_out != NULL);
 
     const bool is_literal = is_ptype(pseudo::literal_string);
@@ -410,7 +413,7 @@ counted_t<const datum_t> datum_t::drop_literals(const configured_limits_t &limit
         counted_t<const datum_t> val = get(pseudo::value_key, NOTHROW);
         if (val) {
             bool encountered_literal;
-            val = val->drop_literals(limits, &encountered_literal);
+            val = val->drop_literals(&encountered_literal);
             // Nested literals should have been caught on the higher QL levels.
             r_sanity_check(!encountered_literal);
         }
@@ -429,7 +432,7 @@ counted_t<const datum_t> datum_t::drop_literals(const configured_limits_t &limit
         for (auto it = obj.begin(); it != obj.end(); ++it) {
             bool encountered_literal;
             counted_t<const datum_t> val =
-                it->second->drop_literals(limits, &encountered_literal);
+                it->second->drop_literals(&encountered_literal);
 
             if (encountered_literal && !need_to_copy) {
                 // We have encountered the first field with a literal.
@@ -457,7 +460,7 @@ counted_t<const datum_t> datum_t::drop_literals(const configured_limits_t &limit
         for (auto it = arr.begin(); it != arr.end(); ++it) {
             bool encountered_literal;
             counted_t<const datum_t> val
-                = (*it)->drop_literals(limits, &encountered_literal);
+                = (*it)->drop_literals(&encountered_literal);
 
             if (encountered_literal && !need_to_copy) {
                 // We have encountered the first element with a literal.
@@ -919,7 +922,7 @@ MUST_USE bool datum_t::delete_field(const std::string &key) {
     return r_object->erase(key);
 }
 
-counted_t<const datum_t> datum_t::merge(counted_t<const datum_t> rhs, const configured_limits_t &limits) const {
+counted_t<const datum_t> datum_t::merge(counted_t<const datum_t> rhs) const {
     if (get_type() != R_OBJECT || rhs->get_type() != R_OBJECT) { return rhs; }
 
     datum_ptr_t d(as_object());
@@ -929,7 +932,7 @@ counted_t<const datum_t> datum_t::merge(counted_t<const datum_t> rhs, const conf
         bool is_literal = it->second->is_ptype(pseudo::literal_string);
 
         if (it->second->get_type() == R_OBJECT && sub_lhs && !is_literal) {
-            UNUSED bool b = d.add(it->first, sub_lhs->merge(it->second, limits),
+            UNUSED bool b = d.add(it->first, sub_lhs->merge(it->second),
                                   CLOBBER);
         } else {
             counted_t<const datum_t> val =
@@ -940,7 +943,7 @@ counted_t<const datum_t> datum_t::merge(counted_t<const datum_t> rhs, const conf
                 // Since nested literal keywords are forbidden, this should be a no-op
                 // if `is_literal == true`.
                 bool encountered_literal;
-                val = val->drop_literals(limits, &encountered_literal);
+                val = val->drop_literals(&encountered_literal);
                 r_sanity_check(!encountered_literal || !is_literal);
             }
             if (val) {
