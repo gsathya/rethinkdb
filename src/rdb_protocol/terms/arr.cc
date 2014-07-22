@@ -23,12 +23,14 @@ protected:
         if (which_pend == PRE) {
             // TODO: this is horrendously inefficient.
             out.add(new_el, env->env->limits);
-            for (size_t i = 0; i < arr->size(); ++i)
+            for (size_t i = 0; i < arr->size(); ++i) {
                 out.add(arr->get(i), env->env->limits);
+            }
         } else {
             // TODO: this is horrendously inefficient.
-            for (size_t i = 0; i < arr->size(); ++i)
+            for (size_t i = 0; i < arr->size(); ++i) {
                 out.add(arr->get(i), env->env->limits);
+            }
             out.add(new_el, env->env->limits);
         }
         return new_val(out.to_counted());
