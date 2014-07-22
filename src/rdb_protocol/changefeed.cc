@@ -622,10 +622,6 @@ client_t::new_feed(const counted_t<table_t> &tbl, env_t *env) {
             auto feed_it = feeds.find(uuid);
             if (feed_it == feeds.end()) {
                 spot.write_signal()->wait_lazily_unordered();
-                // Even though we have the user's feed here, multiple
-                // users may share a feed_t, and this code path will
-                // only be run for the first one.  Rather than mess
-                // about, just use the defaults.
                 auto val = make_scoped<feed_t>(this, manager, env->ns_repo(), uuid,
                                                &interruptor);
                 feed_it = feeds.insert(std::make_pair(uuid, std::move(val))).first;
