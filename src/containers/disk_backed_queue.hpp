@@ -88,11 +88,11 @@ public:
 
     virtual void view_buffer_group(const const_buffer_group_t *group) {
         // TODO: We assume here that the data was serialized by _other_ code using
-        // LATEST -- some in disk_backed_queue_t::push, but also in btree_store.cc,
-        // which uses internal_disk_backed_queue_t directly.  (There's no good reason
-        // for this today: it needed to be generic when that code was templatized on
-        // protocol_t.)
-        deserialize_from_group<cluster_version_t::LATEST_DISK>(group, value_out_);
+        // LATEST_OVERALL -- some in disk_backed_queue_t::push, but also in
+        // btree_store.cc, which uses internal_disk_backed_queue_t directly.
+        // (There's no good reason for this today: it needed to be generic when that
+        // code was templatized on protocol_t.)
+        deserialize_from_group<cluster_version_t::LATEST_OVERALL>(group, value_out_);
     }
 
 private:
@@ -112,7 +112,7 @@ public:
         // serialization_size overloaded function to be implemented in order to eliminate).
         // TODO: We have such a serialization_size function.
         write_message_t wm;
-        serialize<cluster_version_t::LATEST_DISK>(&wm, t);
+        serialize<cluster_version_t::LATEST_OVERALL>(&wm, t);
         internal_.push(wm);
     }
 

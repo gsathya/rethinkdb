@@ -1093,6 +1093,7 @@ RDB_IMPL_SERIALIZABLE_4(
     write_t, write, durability_requirement, profile, optargs);
 INSTANTIATE_SERIALIZABLE_FOR_CLUSTER(write_t);
 
+#if 0
 // Needed because listener_t::write_queue_entry_t is serialized to disk.
 template <>
 void serialize<cluster_version_t::v1_13>(write_message_t *s, const write_t &w) {
@@ -1114,6 +1115,7 @@ archive_result_t deserialize<cluster_version_t::v1_13>(read_stream_t *s, write_t
     // information to recreate them and shouldn't, even if we did.
     return res;
 }
+#endif
 
 // Serialization format changed in 1.13.2. We only support the latest version,
 // since this is a cluster-only type.
