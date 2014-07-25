@@ -1,36 +1,40 @@
-// Copyright 2010-2012 RethinkDB, all rights reserved.
+// Copyright 2010-2014 RethinkDB, all rights reserved.
 #include "clustering/administration/network_logger.hpp"
 
 #include "errors.hpp"
 #include <boost/bind.hpp>
 
 network_logger_t::network_logger_t(
-        peer_id_t our_peer_id,
-        const clone_ptr_t<watchable_t<change_tracking_map_t<peer_id_t, cluster_directory_metadata_t> > > &dv,
-        const boost::shared_ptr<semilattice_read_view_t<machines_semilattice_metadata_t> > &sv) :
-    us(our_peer_id),
-    directory_view(dv), semilattice_view(sv),
+        peer_id_t _us,
+        clone_ptr_t<watchable_t<change_tracking_map_t<peer_id_t,
+            server_directory_metadata_t> > > _directory_view,
+        boost::shared_ptr<semilattice_readwrite_view_t<servers_semilattice_metadata_t> >
+            _semilattice_view) :
+    us(_us),
+    directory_view(_directory_view), semilattice_view(_semilattice_view),
     directory_subscription(boost::bind(&network_logger_t::on_change, this)),
     semilattice_subscription(boost::bind(&network_logger_t::on_change, this))
 {
-    watchable_t<change_tracking_map_t<peer_id_t, cluster_directory_metadata_t> >::freeze_t directory_freeze(directory_view);
-    guarantee(directory_view->get().get_inner().empty());
+    watchable_t<change_tracking_map_t<peer_id_t, server_directory_metadata_t> >::freeze_t
+        directory_freeze(directory_view);
+    rassert(directory_view->get().get_inner().size() <= 1, "The network_logger_t should "
+        "be constructed before any connections are established to other servers.");
     directory_subscription.reset(directory_view, &directory_freeze);
     semilattice_subscription.reset(semilattice_view);
 }
 
 void network_logger_t::on_change() {
-    machines_semilattice_metadata_t semilattice = semilattice_view->get();
+    servers_semilattice_metadata_t semilattice = semilattice_view->get();
 
     std::set<machine_id_t> servers_seen;
     std::set<peer_id_t> proxies_seen;
 
     struct op_closure_t {
-        static void apply(const machines_semilattice_metadata_t &_semilattice,
+        static void apply(const servers_semilattice_metadata_t &_semilattice,
                           std::set<machine_id_t> *_servers_seen,
                           std::set<peer_id_t> *_proxies_seen,
                           network_logger_t *parent,
-                          const change_tracking_map_t<peer_id_t, cluster_directory_metadata_t> *directory) {
+                          const change_tracking_map_t<peer_id_t, server_directory_metadata_t> *directory) {
             for (auto it = directory->get_inner().begin(); it != directory->get_inner().end(); it++) {
                 if (it->first == parent->us) {
                     continue;
@@ -41,12 +45,11 @@ void network_logger_t::on_change() {
                     }
                     case SERVER_PEER: {
                         _servers_seen->insert(it->second.machine_id);
-                        machines_semilattice_metadata_t::machine_map_t::const_iterator jt
-                            = _semilattice.machines.find(it->second.machine_id);
+                        auto jt = _semilattice.servers.find(it->second.machine_id);
                         /* If they don't appear in the machines map, assume that they're
                         a new machine and that an entry for them will appear as soon as
                         the semilattice finishes syncing. */
-                        if (jt != _semilattice.machines.end()) {
+                        if (jt != _semilattice.servers.end()) {
                             if (parent->connected_servers.count(it->second.machine_id) == 0) {
                                 parent->connected_servers.insert(it->second.machine_id);
                                 logINF("Connected to server %s", parent->pretty_print_machine(it->second.machine_id).c_str());
@@ -92,16 +95,15 @@ void network_logger_t::on_change() {
 }
 
 std::string network_logger_t::pretty_print_machine(machine_id_t id) {
-    machines_semilattice_metadata_t semilattice = semilattice_view->get();
-    machines_semilattice_metadata_t::machine_map_t::iterator jt = semilattice.machines.find(id);
-    guarantee(jt != semilattice.machines.end());
+    servers_semilattice_metadata_t semilattice = semilattice_view->get();
+    auto jt = semilattice.servers.find(id);
+    guarantee(jt != semilattice.servers.end());
     std::string name;
     if (jt->second.is_deleted()) {
         name = "<permanently deleted machine>";
-    } else if (jt->second.get_ref().name.in_conflict()) {
-        name = "<name in conflict>";
     } else {
-        name = "\"" + jt->second.get_ref().name.get().str() + "\"";
+        name = "\"" + jt->second.get_ref().get_ref().name.str() + "\"";
     }
     return name + " " + uuid_to_str(id);
 }
+

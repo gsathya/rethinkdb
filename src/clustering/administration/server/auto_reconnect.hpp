@@ -1,4 +1,4 @@
-// Copyright 2010-2012 RethinkDB, all rights reserved.
+// Copyright 2010-2014 RethinkDB, all rights reserved.
 #ifndef CLUSTERING_ADMINISTRATION_AUTO_RECONNECT_HPP_
 #define CLUSTERING_ADMINISTRATION_AUTO_RECONNECT_HPP_
 
@@ -19,8 +19,8 @@ public:
     auto_reconnector_t(
         connectivity_cluster_t *connectivity_cluster,
         connectivity_cluster_t::run_t *connectivity_cluster_run,
-        const clone_ptr_t<watchable_t<change_tracking_map_t<peer_id_t, machine_id_t> > > &machine_id_translation_table,
-        const boost::shared_ptr<semilattice_read_view_t<machines_semilattice_metadata_t> > &machine_metadata);
+        boost::shared_ptr<semilattice_readwrite_view_t<servers_semilattice_metadata_t> >
+            _semilattice_view);
 
 private:
     void on_connect_or_disconnect();

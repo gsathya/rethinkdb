@@ -2,6 +2,8 @@
 #include "clustering/administration/server/metadata_client.hpp"
 
 server_metadata_client_t::server_metadata_client_t(
+        connectivity_cluster_t *_connectivity_cluster,
+        connectivity_cluster_t::run_t *_connectivity_cluster_run,
         mailbox_manager_t *_mailbox_manager,
         clone_ptr_t<watchable_t<change_tracking_map_t<peer_id_t,
             server_directory_metadata_t> > > _directory_view,
@@ -11,7 +13,15 @@ server_metadata_client_t::server_metadata_client_t(
     directory_view(_directory_view),
     semilattice_view(_semilattice_view)
     directory_subs([this]() { this->recompute_name_map(); }),
-    semilattice_subs([this]() { this->recompute_name_map(); })
+    semilattice_subs([this]() { this->recompute_name_map(); }),
+    auto_reconnector(new auto_reconnector_t(
+        _connectivity_cluster,
+        _connectivity_cluster_run,
+        this)),
+    network_logger(new network_logger_t(
+        _connectivity_cluster->get_me(),
+        _directory_view,
+        _semilattice_view));
 {
     watchable_t<servers_directory_metadata_t>::freeze_t freeze(directory_view);
     directory_subs.reset(directory_view, &freeze);

@@ -137,6 +137,8 @@ void server_metadata_server_t::rename_me(const name_string_t &new_name) {
 
 void server_metadata_server_t::on_rename_request(const name_string_t &new_name,
                                                  mailbox_t<void()>::addr_t ack_addr) {
+    logINF("Changed server's name from `%s` to `%s`.",
+        my_name.c_str(), new_name.c_str());
     rename_me(new_name);
     on_semilattice_change();   /* check if we caused a name collision */
 
@@ -154,7 +156,12 @@ void server_metadata_server_t::on_semilattice_change() {
 
     /* Check if we've been permanently removed */
     if (sl_metadata.servers.at(my_machine_id).is_deleted()) {
-        permanently_removed_cond.pulse_if_not_already_pulsed();
+        if (!permanently_removed_cond.is_pulsed()) {
+            logERR("This server has been permanently removed from the cluster. Please "
+                "shut down the server, erase its data files, and start a fresh "
+                "RethinkDB instance.");
+            permanently_removed_cond.pulse();
+        }
         return;
     }
 
@@ -188,6 +195,8 @@ void server_metadata_server_t::on_semilattice_change() {
             `foo_renamed`, `foo_renamed2`, `foo_renamed3`, etc. */
             new_name = make_renamed_name(new_name);
         }
+        logWRN("Automatically changed server's name from `%s` to `%s` to fix a name "
+            "collision.", my_name.c_str(), new_name.c_str());
         rename_me(new_name);
     }
 }
