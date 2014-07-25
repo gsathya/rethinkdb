@@ -97,7 +97,7 @@ std::string network_logger_t::pretty_print_machine(machine_id_t id) {
     guarantee(jt != semilattice.machines.end());
     std::string name;
     if (jt->second.is_deleted()) {
-        name = "<ghost machine>";
+        name = "<permanently deleted machine>";
     } else if (jt->second.get_ref().name.in_conflict()) {
         name = "<name in conflict>";
     } else {
