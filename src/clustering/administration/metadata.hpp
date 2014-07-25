@@ -12,10 +12,9 @@
 #include "clustering/administration/database_metadata.hpp"
 #include "clustering/administration/issues/local.hpp"
 #include "clustering/administration/log_transfer.hpp"
-#include "clustering/administration/machine_metadata.hpp"
 #include "clustering/administration/namespace_metadata.hpp"
+#include "clustering/administration/server/server_metadata.hpp"
 #include "clustering/administration/stat_manager.hpp"
-#include "clustering/administration/metadata_change_handler.hpp"
 #include "containers/cow_ptr.hpp"
 #include "containers/auth_key.hpp"
 #include "http/json/json_adapter.hpp"
@@ -30,7 +29,7 @@ public:
 
     cow_ptr_t<namespaces_semilattice_metadata_t> rdb_namespaces;
 
-    machines_semilattice_metadata_t machines;
+    servers_semilattice_metadata_t servers;
     databases_semilattice_metadata_t databases;
 };
 
@@ -62,7 +61,6 @@ void with_ctx_apply_json_to(cJSON *change, auth_semilattice_metadata_t *target, 
 void with_ctx_on_subfield_change(auth_semilattice_metadata_t *, const vclock_ctx_t &);
 
 enum cluster_directory_peer_type_t {
-    ADMIN_PEER,
     SERVER_PEER,
     PROXY_PEER
 };
@@ -74,22 +72,18 @@ public:
 
     cluster_directory_metadata_t() { }
     cluster_directory_metadata_t(
-            machine_id_t mid,
+            server_directory_metadata_t server_metadata,
             peer_id_t pid,
             uint64_t _cache_size,
             const std::vector<std::string> &_ips,
             const get_stats_mailbox_address_t& _stats_mailbox,
-            const metadata_change_handler_t<cluster_semilattice_metadata_t>::request_mailbox_t::address_t& _semilattice_change_mailbox,
-            const metadata_change_handler_t<auth_semilattice_metadata_t>::request_mailbox_t::address_t& _auth_change_mailbox,
             const log_server_business_card_t &lmb,
             cluster_directory_peer_type_t _peer_type) :
-        machine_id(mid),
+        server_metadata(server_metadata),
         peer_id(pid),
         cache_size(_cache_size),
         ips(_ips),
         get_stats_mailbox_address(_stats_mailbox),
-        semilattice_change_mailbox(_semilattice_change_mailbox),
-        auth_change_mailbox(_auth_change_mailbox),
         log_mailbox(lmb),
         peer_type(_peer_type) { }
     /* Move constructor */
@@ -103,12 +97,10 @@ public:
     /* Move assignment operator */
     cluster_directory_metadata_t &operator=(cluster_directory_metadata_t &&other) {
         rdb_namespaces = std::move(other.rdb_namespaces);
-        machine_id = other.machine_id;
+        server_metadata = other.server_metadata;
         peer_id = other.peer_id;
         cache_size = other.cache_size;
         ips = std::move(other.ips);
-        get_stats_mailbox_address = other.get_stats_mailbox_address;
-        semilattice_change_mailbox = other.semilattice_change_mailbox;
         auth_change_mailbox = other.auth_change_mailbox;
         log_mailbox = other.log_mailbox;
         local_issues = std::move(other.local_issues);
@@ -121,12 +113,10 @@ public:
      * assignment operator explicitly. */
     cluster_directory_metadata_t &operator=(const cluster_directory_metadata_t &other) {
         rdb_namespaces = other.rdb_namespaces;
-        machine_id = other.machine_id;
+        server_metadata = other.server_metadata;
         peer_id = other.peer_id;
         cache_size = other.cache_size;
         ips = other.ips;
-        get_stats_mailbox_address = other.get_stats_mailbox_address;
-        semilattice_change_mailbox = other.semilattice_change_mailbox;
         auth_change_mailbox = other.auth_change_mailbox;
         log_mailbox = other.log_mailbox;
         local_issues = other.local_issues;
@@ -137,8 +127,9 @@ public:
 
     namespaces_directory_metadata_t rdb_namespaces;
 
-    /* Tell the other peers what our machine ID is */
-    machine_id_t machine_id;
+    server_directory_metadata_t server_metadata;
+
+    // RSI: Remove this?
     peer_id_t peer_id;
 
     /* Tell everyone how much cache we have */
@@ -148,8 +139,6 @@ public:
     std::vector<std::string> ips;
 
     get_stats_mailbox_address_t get_stats_mailbox_address;
-    metadata_change_handler_t<cluster_semilattice_metadata_t>::request_mailbox_t::address_t semilattice_change_mailbox;
-    metadata_change_handler_t<auth_semilattice_metadata_t>::request_mailbox_t::address_t auth_change_mailbox;
     log_server_business_card_t log_mailbox;
     std::list<local_issue_t> local_issues;
     cluster_directory_peer_type_t peer_type;

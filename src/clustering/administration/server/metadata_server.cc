@@ -92,13 +92,6 @@ server_metadata_server_t::server_metadata_server_t(
             });
         })
 {
-    /* Prepare a directory entry. */
-    server_directory_metadata_t dir_metadata;
-    dir_metadata.machine_id = my_machine_id;
-    dir_metadata.rename_addr = rename_mailbox.get_address();
-    dir_metadata.startup_time = startup_time;
-    directory_var.set_value(dir_metadata);
-
     /* If we don't have an entry in the semilattices, create one. */
     servers_semilattice_metadata_t metadata = semilattice_view->get();
     if (metadata.servers.count(_my_machine_id) == 0) {
@@ -117,6 +110,14 @@ server_metadata_server_t::server_metadata_server_t(
     /* Check for name collisions or if we were permanently removed. */
     semilattice_subs.reset(semilattice_view);
     on_semilattice_change();
+}
+
+server_directory_metadata_t server_metadata_server_t::get_directory_metadata() {
+    server_directory_metadata_t dir_metadata;
+    dir_metadata.machine_id = my_machine_id;
+    dir_metadata.rename_addr = rename_mailbox.get_address();
+    dir_metadata.startup_time = startup_time;
+    return dir_metadata;
 }
 
 void server_metadata_server_t::rename_me(const name_string_t &new_name) {

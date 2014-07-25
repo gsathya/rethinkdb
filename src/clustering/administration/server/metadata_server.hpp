@@ -52,7 +52,6 @@ private:
     time_t startup_time;
     name_string_t my_name;
     cond_t permanently_removed_cond;
-    watchable_variable_t<server_directory_metadata_t> dir_metadata_var;
 
     clone_ptr_t<watchable_t<change_tracking_map_t<peer_id_t,
         server_directory_metadata_t> > > directory_view;

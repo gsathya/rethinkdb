@@ -120,26 +120,35 @@ bool do_serve(io_backender_t *io_backender,
         // stat_manager mailbox address
         stat_manager_t stat_manager(&mailbox_manager);
 
-        metadata_change_handler_t<cluster_semilattice_metadata_t> metadata_change_handler(&mailbox_manager, semilattice_manager_cluster.get_root_view());
-        metadata_change_handler_t<auth_semilattice_metadata_t> auth_change_handler(&mailbox_manager, auth_manager_cluster.get_root_view());
+        directory_read_manager_t<cluster_directory_metadata_t> directory_read_manager(
+            &connectivity_cluster, 'D');
+
+        server_metadata_server_t server_metadata_server(
+            &mailbox_manager,
+            server_name,
+            machine_id,
+            directory_read_manager.get_root_view()->incremental_subview(
+                incremental_field_getter_t<server_directory_metadata_t,
+                                           cluster_directory_metadata_t>
+                    (&cluster_directory_metadata_t::server_metadata)),
+            metadata_field(&cluster_semilattice_metadata_t::servers,
+                semilattice_manager_cluster.get_root_view());
 
         scoped_ptr_t<cluster_directory_metadata_t> initial_directory(
-            new cluster_directory_metadata_t(machine_id,
-                                             connectivity_cluster.get_me(),
-                                             total_cache_size,
-                                             get_ips(),
-                                             stat_manager.get_address(),
-                                             metadata_change_handler.get_request_mailbox_address(),
-                                             auth_change_handler.get_request_mailbox_address(),
-                                             log_server.get_business_card(),
-                                             i_am_a_server ? SERVER_PEER : PROXY_PEER));
+            new cluster_directory_metadata_t(
+                server_metadata_server.get_directory_metadata(),
+                connectivity_cluster.get_me(),
+                total_cache_size,
+                get_ips(),
+                stat_manager.get_address(),
+                log_server.get_business_card(),
+                i_am_a_server ? SERVER_PEER : PROXY_PEER));
 
         watchable_variable_t<cluster_directory_metadata_t> our_root_directory_variable(*initial_directory);
 
         directory_write_manager_t<cluster_directory_metadata_t> directory_write_manager(
             &connectivity_cluster, 'D', our_root_directory_variable.get_watchable());
-        directory_read_manager_t<cluster_directory_metadata_t> directory_read_manager(
-            &connectivity_cluster, 'D');
+        
 
         network_logger_t network_logger(
             connectivity_cluster.get_me(),

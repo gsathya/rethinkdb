@@ -1,6 +1,9 @@
 // Copyright 2010-2014 RethinkDB, all rights reserved.
 #include "clustering/administration/server/metadata_client.hpp"
 
+#include "clustering/administration/server/auto_reconnect.hpp"
+#include "clustering/administration/server/network_logger.hpp"
+
 server_metadata_client_t::server_metadata_client_t(
         connectivity_cluster_t *_connectivity_cluster,
         connectivity_cluster_t::run_t *_connectivity_cluster_run,
@@ -17,7 +20,8 @@ server_metadata_client_t::server_metadata_client_t(
     auto_reconnector(new auto_reconnector_t(
         _connectivity_cluster,
         _connectivity_cluster_run,
-        this)),
+        _directory_view,
+        _semilattice_view)),
     network_logger(new network_logger_t(
         _connectivity_cluster->get_me(),
         _directory_view,

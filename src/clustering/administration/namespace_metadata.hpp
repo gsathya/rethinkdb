@@ -58,9 +58,11 @@ void debug_print(printf_buffer_t *buf, const ack_expectation_t &x);
 
 class table_config_t {
 public:
-    /* `regions`, `replica_server_names`, and `director_server_names` have exactly the same number of elements; they are
-    aligned with each other. That is, the shard whose boundaries are the first element in `regions` has the the replicas
-    in `replica_server_names[0]`, and its director candidates are in `director_server_names[0]`. */
+    /* `regions`, `replica_server_names`, and `director_server_names` have exactly the
+    same number of elements. They are aligned with each other. That is, the shard whose
+    boundaries are the first element in `regions` has the the replicas in
+    `replica_server_names[0]`, and its director candidates are in
+    `director_server_names[0]`. */
     nonoverlapping_regions_t regions;
     std::vector<std::set<name_string_t> > replica_server_names;
     std::vector<std::set<name_string_t> > director_server_names;

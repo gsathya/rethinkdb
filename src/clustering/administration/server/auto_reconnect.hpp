@@ -19,6 +19,8 @@ public:
     auto_reconnector_t(
         connectivity_cluster_t *connectivity_cluster,
         connectivity_cluster_t::run_t *connectivity_cluster_run,
+        clone_ptr_t<watchable_t<change_tracking_map_t<peer_id_t,
+            server_directory_metadata_t> > > _directory_view,
         boost::shared_ptr<semilattice_readwrite_view_t<servers_semilattice_metadata_t> >
             _semilattice_view);
 
@@ -34,8 +36,10 @@ private:
 
     connectivity_cluster_t *connectivity_cluster;
     connectivity_cluster_t::run_t *connectivity_cluster_run;
-    clone_ptr_t<watchable_t<change_tracking_map_t<peer_id_t, machine_id_t> > > machine_id_translation_table;
-    boost::shared_ptr<semilattice_read_view_t<machines_semilattice_metadata_t> > machine_metadata;
+    clone_ptr_t<watchable_t<change_tracking_map_t<peer_id_t,
+            server_directory_metadata_t> > > directory_view;
+    boost::shared_ptr<semilattice_read_view_t<servers_semilattice_metadata_t> >
+        semilattice_view;
 
     /* this is so that `on_connect_or_disconnect()` can find the machine ID and last
     known address of a peer that just disconnected. */
@@ -43,7 +47,8 @@ private:
 
     auto_drainer_t drainer;
 
-    watchable_t<change_tracking_map_t<peer_id_t, machine_id_t> >::subscription_t machine_id_translation_table_subs;
+    watchable_t<change_tracking_map_t<peer_id_t, server_directory_metadata_t> >
+        ::subscription_t directory_subs;
 
     DISABLE_COPYING(auto_reconnector_t);
 };
